@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Head 2 Head: Feud Edition</title>
+  <style>
+    /* Base reset & layout */
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: hsl(210, 70%, 30%);
+      animation: hueShift 20s linear infinite;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      position: relative;
+      user-select: none;
+    }
+
+    @keyframes hueShift {
+      0%   { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
+    }
+
+    /* Unique Spawn Animations for Each Element */
+    @keyframes spawnJumpFade {
+      0% {opacity: 0; transform: translateY(-40px) scale(0.7);}
+      50% {opacity: 1; transform: translateY(10px) scale(1.1);}
+      70% {transform: translateY(-5px) scale(0.95);}
+      100% {opacity: 1; transform: translateY(0) scale(1);}
+    }
+    @keyframes spawnPopScale {
+      0% {opacity: 0; transform: scale(0) rotate(-15deg);}
+      60% {opacity: 1; transform: scale(1.2) rotate(10deg);}
+      100% {opacity: 1; transform: scale(1) rotate(0deg);}
+    }
+
+    .spawn-title {
+      animation: spawnJumpFade 1.2s cubic-bezier(.42,2.2,.58,1) forwards;
+    }
+    .spawn-button {
+      animation: spawnPopScale 1.2s cubic-bezier(.42,2.2,.58,1) forwards;
+      animation-delay: 0.9s;
+      opacity: 0;
+    }
+
+    h1 {
+      font-size: 3.3rem;
+      text-shadow:
+        0 0 10px rgba(255 255 255 / 0.7),
+        0 0 20px rgba(255 0 150 / 0.6),
+        0 0 30px rgba(255 0 150 / 0.8);
+      letter-spacing: 3px;
+      margin-bottom: 30px;
+      user-select: none;
+    }
+
+    button#startBtn {
+      font-size: 1.8rem;
+      padding: 18px 50px;
+      border: none;
+      border-radius: 50px;
+      background: linear-gradient(45deg, #ff0054, #ff61a6);
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 0 20px #ff0054aa;
+      transition: background 0.4s ease, box-shadow 0.4s ease;
+      user-select: none;
+    }
+    button#startBtn:hover,
+    button#startBtn:focus {
+      background: linear-gradient(45deg, #e60047, #ff4088);
+      box-shadow: 0 0 40px #ff4088bb;
+      outline: none;
+    }
+
+    /* Canvas full screen */
+    canvas#starsCanvas {
+      position: fixed;
+      top:0; left:0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="starsCanvas"></canvas>
+
+  <div class="content">
+    <h1 class="spawn-title">Head 2 Head: Feud Edition</h1>
+    <button id="startBtn" class="spawn-button" aria-label="Start the Game">Start</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('starsCanvas');
+    const ctx = canvas.getContext('2d');
+    let W, H;
+    let stars = [];
+    const maxStars = 120; // Number of stars falling
+    const gravity = 0.15;
+
+    function randRange(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    class Star {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        this.x = randRange(0, W);
+        this.y = randRange(-H*0.5, -10);
+        this.size = randRange(2, 5);
+        this.speedY = randRange(1, 3);
+        this.trailLength = randRange(10, 25);
+        this.hue = randRange(0, 360);
+        this.saturation = 100;
+        this.lightness = 60;
+        this.opacity = randRange(0.6, 1);
+        this.trail = [];
+      }
+
+      update() {
+        this.y += this.speedY + gravity;
+
+        // Add current pos to trail
+        this.trail.push({x: this.x, y: this.y});
+        if(this.trail.length > this.trailLength) this.trail.shift();
+
+        // Respawn star at top if off bottom
+        if (this.y - this.size > H) {
+          this.reset();
+        }
+      }
+
+      draw() {
+        // Draw trail - rainbow gradient line
+        for(let i=0; i < this.trail.length - 1; i++) {
+          let p0 = this.trail[i];
+          let p1 = this.trail[i+1];
+          let grad = ctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
+          let hue = (this.hue + (i*12)) % 360;
+          grad.addColorStop(0, `hsla(${hue}, ${this.saturation}%, ${this.lightness}%, ${(i+1)/this.trail.length * this.opacity})`);
+          grad.addColorStop(1, `hsla(${(hue+30)%360}, ${this.saturation}%, ${this.lightness}%, 0)`);
+
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = this.size / 4;
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          ctx.lineTo(p1.x, p1.y);
+          ctx.stroke();
+        }
+
+        // Draw star as glowing circle
+        let glowRadius = this.size * 2;
+        let gradient = ctx.createRadialGradient(this.x, this.y, this.size/4, this.x, this.y, glowRadius);
+        gradient.addColorStop(0, `hsla(${this.hue}, ${this.saturation}%, ${this.lightness}%, ${this.opacity})`);
+        gradient.addColorStop(1, 'transparent');
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function initStars() {
+      stars = [];
+      for (let i=0; i < maxStars; i++) {
+        stars.push(new Star());
+      }
+    }
+
+    function resize() {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = W * devicePixelRatio;
+      canvas.height = H * devicePixelRatio;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, W, H);
+      for (let star of stars) {
+        star.update();
+        star.draw();
+      }
+      requestAnimationFrame(animate);
+    }
+
+    // Init & Run
+    resize();
+    initStars();
+    animate();
+
+    window.addEventListener('resize', () => {
+      resize();
+      initStars();
+    });
+
+    // Start button logic
+    const startBtn = document.getElementById('startBtn');
+    startBtn.addEventListener('click', () => {
+      startBtn.disabled = true;
+      startBtn.textContent = 'Loading...';
+      setTimeout(() => {
+        window.location.href = 'setup.html';
+      }, 300);
+    });
+  </script>
+</body>
+</html>
